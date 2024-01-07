@@ -47,6 +47,64 @@ jobs:
 
       # Create build archive
       - name: Create build archive
+        working-directory: ./next
+        run: tar -czvf /tmp/build.tar.gz ./
+
+      # Upload build archive file
+      - name: Upload Build File
+        run: scp -o StrictHostKeyChecking=no -i /tmp/ssh_key /tmp/build.tar.gz ${{env.host}}:/tmp/frontstatus_build.tar.gz
+
+      # Extract the build archive on the server
+
+      name: Deploy React/Vite App
+
+on:
+  push:
+    branches: ["pro"]
+jobs:
+  docker-build:
+    runs-on: ubuntu-20.04
+    env:
+      dir: /home/victordoorcom/app.victor-door.com
+      host: victordoorcom@victor-door.com
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "🖥️ The workflow is now ready to rebuild  your code on the runner."
+
+      - name: Checkout Private Key
+        run: echo "${{ secrets.SSH_KEY }}" > /tmp/ssh_key
+
+      - name: Update private Key permission
+        run: chmod 400 /tmp/ssh_key
+
+      # Build The Vite/React Project
+
+      - name: Install pnpm
+        run: npm i -g pnpm
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "pnpm"
+
+      - name: Install packages
+        run: pnpm install
+
+      # Creating Enviromnent variable
+      - name: Creating enviroment variables
+        run: echo -e
+          "
+          GENERATE_SOURCEMAP = false\nVITE_APP_DOOR_STATUS_BACKEND='https://admin.status.victor-door.com'\nVITE_APP_DOOR_ERP='https://erpproxy.victor-door.com/api'\nVITE_APP_INVENTORY_BACKEND='https://assetb.victor-door.com'\nVITE_APP_BACKEND_URL='https://app-b.victor-door.com/api'\n
+          "> .env
+
+      # Build The Vite/React Project
+      - name: Building the React/Vite Project
+        run: pnpm run build
+
+      # Create build archive
+      - name: Create build archive
         working-directory: ./dist
         run: tar -czvf /tmp/build.tar.gz ./
 
@@ -58,6 +116,24 @@ jobs:
 
       - name: Extract source code archive
         run: ssh -i /tmp/ssh_key ${{env.host}} tar -zxvf /tmp/frontstatus_build.tar.gz -C ${{env.dir}}
+
+
+      - name: Restart the server
+        run: ssh -i /tmp/ssh_key ${{env.host}} tar -zxvf /tmp/frontstatus_build.tar.gz -C ${{env.dir}}
+
+
+      # - run: cp /opt/env/asset_mgmt/fontend/.env .env
+
+      # - run: docker compose build
+      # - run: docker compose up -d
+      - name: Remove Private key
+        run: rm  /tmp/ssh_key
+
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+
+    # - uses: actions/checkout@v3
+    # - name: Re Build the Docker image
+# z
 
       # - run: cp /opt/env/asset_mgmt/fontend/.env .env
 
